@@ -25,6 +25,7 @@
     }
   ],
   "env": {
-    "GAS_PROXY_URL": "@gas_proxy_url"
+    "GAS_PROXY_URL": "@gas_proxy_url",
+    "TELEGRAM_TOKEN": "@telegram_token"
   }
 }
