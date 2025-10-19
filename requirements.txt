@@ -1,6 +1,0 @@
-python-telegram-bot==21.4
-aiohttp
-aiohttp-session
-requests
-python-dotenv
-openai
