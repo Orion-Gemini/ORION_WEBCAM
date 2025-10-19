@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Web App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* CSS-стили для TWA */
+        body { font-family: sans-serif; margin: 0; padding: 10px; background-color: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #000); }
+        #chat-window { max-height: 70vh; overflow-y: auto; margin-bottom: 10px; padding: 10px; border-radius: 8px; background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); }
+        #input-area { display: flex; position: fixed; bottom: 0; left: 0; right: 0; padding: 10px; background-color: var(--tg-theme-bg-color, #fff); }
+        #prompt-input { flex-grow: 1; padding: 10px; border: 1px solid var(--tg-theme-hint-color, #ccc); border-radius: 6px; margin-right: 10px; background-color: var(--tg-theme-secondary-bg-color, #fff); color: var(--tg-theme-text-color, #000); }
+        #send-button { padding: 10px 15px; border: none; border-radius: 6px; background-color: var(--tg-theme-button-color, #007bff); color: var(--tg-theme-button-text-color, #fff); cursor: pointer; }
+        .message { margin-bottom: 8px; padding: 8px; border-radius: 6px; word-wrap: break-word; }
+        .user { background-color: var(--tg-theme-link-color, #e0f7fa); text-align: right; }
+        .bot { background-color: var(--tg-theme-hint-color, #fce4ec); text-align: left; }
+    </style>
+</head>
+<body>
+    <div id="chat-window">
+        <div class="message bot">Добро пожаловать в Gemini Web App!</div>
+    </div>
+
+    <div id="input-area">
+        <input type="text" id="prompt-input" placeholder="Введите ваш запрос..." disabled>
+        <button id="send-button" disabled>Отправить</button>
+    </div>
+
+    <script>
+        // === ВАЖНО: АДРЕС ВАШЕГО СЕРВЕРА AMVERUM ===
+        const API_URL = 'http://ВАШ_ПУБЛИЧНЫЙ_IP_AMVERUM:5000/api/twa_gemini_query';
+        // ===========================================
+
+        const chatWindow = document.getElementById('chat-window');
+        const promptInput = document.getElementById('prompt-input');
+        const sendButton = document.getElementById('send-button');
+
+        // История для API: список объектов {role: 'user'/'model', parts: [{text: '...'}]}
+        let chatHistory = [];
+
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + sender;
+            messageDiv.textContent = text;
+            chatWindow.appendChild(messageDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            // Блокируем ввод во время ожидания
+            promptInput.disabled = true;
+            sendButton.disabled = true;
+
+            addMessage('user', prompt);
+            promptInput.value = '';
+
+            // 1. Добавить сообщение пользователя в историю
+            chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+
+            // 2. Отправить запрос на API
+            try {
+                addMessage('bot', 'Думаю...');
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        history: chatHistory.slice(-6) // Отправляем последние 6 сообщений для контекста
+                    })
+                });
+
+                const data = await response.json();
+
+                // Удалить сообщение "Думаю..."
+                if (chatWindow.lastChild) chatWindow.lastChild.remove();
+
+                if (response.ok && data.response) {
+                    addMessage('bot', data.response);
+                    // Добавить ответ бота в историю
+                    chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
+                } else {
+                    addMessage('bot', 'Ошибка сервера: ' + (data.error || 'Неизвестная ошибка.'));
+                }
+
+            } catch (error) {
+                if (chatWindow.lastChild) chatWindow.lastChild.remove();
+                addMessage('bot', 'Ошибка сети. Проверьте адрес API.');
+                console.error('API Call Error:', error);
+            } finally {
+                // Разблокируем ввод
+                promptInput.disabled = false;
+                sendButton.disabled = false;
+                promptInput.focus();
+            }
+        }
+
+        // Настройка обработчиков
+        sendButton.addEventListener('click', sendMessage);
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Инициализация Telegram Web App
+        if (window.Telegram && window.Telegram.WebApp) {
+            Telegram.WebApp.ready();
+            // Разблокируем ввод после инициализации
+            promptInput.disabled = false;
+            sendButton.disabled = false;
+            promptInput.focus();
+        }
+    </script>
+</body>
+</html>
